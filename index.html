@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Futuristic Facial Capture</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bowser/2.11.0/bundled.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background: #000;
+            color: #0ff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .container {
+            position: relative;
+            width: 640px;
+            height: 480px;
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 4px solid #0ff;
+            transition: all 1s ease;
+        }
+
+        .neon-border {
+            box-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 15px #fff, 0 0 20px #0ff, 0 0 35px #0ff, 0 0 40px #0ff;
+        }
+
+        #prompt {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 18px;
+            text-shadow: 0 0 5px #0ff;
+        }
+
+        #particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+    </style>
+</head>
+<body>
+    <div id="particles"></div>
+    <div class="container">
+        <video id="video" autoplay playsinline></video>
+        <div id="overlay" class="neon-border"></div>
+        <div id="prompt">Initializing camera...</div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const video = document.getElementById('video');
+            const overlay = document.getElementById('overlay');
+            const prompt = document.getElementById('prompt');
+
+            // Particle system
+            const particlesScene = new THREE.Scene();
+            const particlesCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const particlesRenderer = new THREE.WebGLRenderer();
+            particlesRenderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('particles').appendChild(particlesRenderer.domElement);
+
+            const particles = new THREE.BufferGeometry();
+            const particleCount = 1000;
+            const posArray = new Float32Array(particleCount * 3);
+
+            for (let i = 0; i < particleCount * 3; i++) {
+                posArray[i] = (Math.random() - 0.5) * 5;
+            }
+
+            particles.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            const particleMaterial = new THREE.PointsMaterial({ size: 0.005, color: 0x00ffff });
+            const particlesMesh = new THREE.Points(particles, particleMaterial);
+            particlesScene.add(particlesMesh);
+
+            particlesCamera.position.z = 2;
+
+            function animateParticles() {
+                requestAnimationFrame(animateParticles);
+                particlesMesh.rotation.x += 0.0005;
+                particlesMesh.rotation.y += 0.0005;
+                particlesRenderer.render(particlesScene, particlesCamera);
+            }
+
+            animateParticles();
+
+            // Browser detection
+            const browserInfo = bowser.parse(window.navigator.userAgent);
+            console.log('Browser:', browserInfo.browser.name, browserInfo.browser.version);
+
+            // Start video stream
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+                .then(stream => {
+                    video.srcObject = stream;
+                    prompt.textContent = 'Position your face within the frame';
+
+                    // Animate overlay from rectangle to round
+                    setTimeout(() => {
+                        overlay.style.borderRadius = '50%';
+                    }, 1000);
+
+                    // Take snapshot and upload after 5 seconds
+                    setTimeout(() => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        canvas.getContext('2d').drawImage(video, 0, 0);
+
+                        prompt.textContent = 'Capturing image...';
+
+                        canvas.toBlob(blob => {
+                            const formData = new FormData();
+                            formData.append('image', blob, 'snapshot.jpg');
+
+                            fetch('https://your-server-url.com/upload.php', {
+                                method: 'POST',
+                                body: formData
+                            })
+                            .then(response => response.text())
+                            .then(result => {
+                                prompt.textContent = 'Image uploaded successfully';
+                            })
+                            .catch(error => {
+                                console.error('Error uploading image:', error);
+                                prompt.textContent = 'Error: Unable to upload image';
+                            });
+                        }, 'image/jpeg');
+                    }, 5000);
+                })
+                .catch(err => {
+                    console.error('Error accessing camera:', err);
+                    prompt.textContent = 'Error: Unable to access camera';
+                });
+        });
+    </script>
+</body>
+</html>
